@@ -168,15 +168,51 @@ class _HistoryScreenState extends State<HistoryScreen> {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: _getSignalColor(detection.signalState),
-            shape: BoxShape.circle,
+            color: Colors.black.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.grey[400]!, width: 1),
           ),
-          child: isAlarm
-              ? const Icon(Icons.warning, color: Colors.white)
-              : Icon(
-                  Icons.circle,
-                  color: _getSignalColor(detection.signalState),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              // Top light (red)
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: detection.signalState == SignalState.red
+                      ? Colors.red
+                      : Colors.grey[700],
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 0.5),
                 ),
+              ),
+              // Middle light (yellow)
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: detection.signalState == SignalState.yellow
+                      ? Colors.yellow
+                      : Colors.grey[700],
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 0.5),
+                ),
+              ),
+              // Bottom light (green)
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: detection.signalState == SignalState.green
+                      ? Colors.green
+                      : Colors.grey[700],
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 0.5),
+                ),
+              ),
+            ],
+          ),
         ),
         title: Text(
           _getSignalStateText(detection.signalState),

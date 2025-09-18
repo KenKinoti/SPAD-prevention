@@ -6,6 +6,7 @@ import '../services/alert_service.dart';
 import '../services/detection_logger.dart';
 import '../models/detection_result.dart';
 import 'history_screen.dart';
+import 'training_screen.dart';
 
 class CameraScreen extends StatefulWidget {
   final CameraDescription camera;
@@ -31,6 +32,11 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   void initState() {
     super.initState();
+    // Force clear any cached detection state
+    _lastDetection = null;
+    _isAlarmActive = false;
+    _isDetecting = false;
+    print('Camera screen initialized - all detection state cleared');
     _initializeCamera();
   }
 
@@ -63,36 +69,57 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   void _startDetection() {
-    if (!_isInitialized || _isDetecting) return;
+    print('=== START DETECTION CALLED ===');
+    print('_isInitialized: $_isInitialized');
+    print('_isDetecting: $_isDetecting');
+    print('_lastDetection: $_lastDetection');
+    print('_isAlarmActive: $_isAlarmActive');
 
+    if (!_isInitialized || _isDetecting) {
+      print('Detection blocked: not initialized or already detecting');
+      return;
+    }
+
+    print('Setting detection state...');
     setState(() {
       _isDetecting = true;
-      _status = 'Detecting signals...';
+      _status = 'Detection Active (Training Data Ready)...';
+      _lastDetection = null;
+      _isAlarmActive = false;
     });
 
+    print('Starting image stream with controlled detection...');
+
+    // Re-enable image stream with careful monitoring
     _controller!.startImageStream((CameraImage image) async {
-      if (_isDetecting) {
+      if (!_isDetecting) return;
+
+      try {
+        print('Processing camera frame: ${image.width}x${image.height}');
         final result = await _detector.detectSignal(image);
 
-        setState(() {
-          _lastDetection = result;
-        });
+        if (result.signalState != SignalState.unknown) {
+          print('DETECTION RESULT: ${result.signalState.name}, confidence: ${(result.confidence * 100).toStringAsFixed(1)}%');
 
-        // Log the detection
-        await _logger.logDetection(result);
+          setState(() {
+            _lastDetection = result;
+          });
 
-        // Check if alarm should be triggered
-        if (result.signalState == SignalState.red && result.distance <= 100.0) {
-          if (!_isAlarmActive) {
-            _isAlarmActive = true;
+          // Only trigger alarm for high-confidence red signals
+          if (result.signalState == SignalState.red && result.confidence > 0.7) {
+            print('HIGH CONFIDENCE RED SIGNAL - triggering alarm');
             _alertService.triggerAlarm();
-          }
-        } else {
-          if (_isAlarmActive) {
-            _isAlarmActive = false;
-            _alertService.stopAlarm();
+            _logger.logDetection(result);
+
+            setState(() {
+              _isAlarmActive = true;
+            });
+          } else {
+            _logger.logDetection(result);
           }
         }
+      } catch (e) {
+        print('Detection error: $e');
       }
     });
   }
@@ -223,7 +250,7 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
             ),
 
-            // Detection Bounding Box
+            // Railway Signal Detection Overlay
             if (_lastDetection != null && _lastDetection!.boundingBox != null)
               Positioned(
                 left: _lastDetection!.boundingBox!.left,
@@ -237,20 +264,106 @@ class _CameraScreenState extends State<CameraScreen> {
                       width: 3,
                     ),
                   ),
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                      color: _getSignalColor(_lastDetection!.signalState),
-                      child: Text(
-                        _getSignalStateText(_lastDetection!.signalState),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                  child: Stack(
+                    children: [
+                      // Railway Signal Housing
+                      Center(
+                        child: Container(
+                          width: _lastDetection!.boundingBox!.width * 0.6,
+                          height: _lastDetection!.boundingBox!.height * 0.8,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.8),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey[400]!, width: 2),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              // Top light (red in red signal, dark in others)
+                              Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: _lastDetection!.signalState == SignalState.red
+                                      ? Colors.red
+                                      : Colors.grey[800],
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 1),
+                                  boxShadow: _lastDetection!.signalState == SignalState.red
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.red.withOpacity(0.8),
+                                            blurRadius: 8,
+                                            spreadRadius: 2,
+                                          )
+                                        ]
+                                      : null,
+                                ),
+                              ),
+                              // Middle light (yellow in yellow signal, dark in others)
+                              Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: _lastDetection!.signalState == SignalState.yellow
+                                      ? Colors.yellow
+                                      : Colors.grey[800],
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 1),
+                                  boxShadow: _lastDetection!.signalState == SignalState.yellow
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.yellow.withOpacity(0.8),
+                                            blurRadius: 8,
+                                            spreadRadius: 2,
+                                          )
+                                        ]
+                                      : null,
+                                ),
+                              ),
+                              // Bottom light (green in green signal, dark in others)
+                              Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: _lastDetection!.signalState == SignalState.green
+                                      ? Colors.green
+                                      : Colors.grey[800],
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 1),
+                                  boxShadow: _lastDetection!.signalState == SignalState.green
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.green.withOpacity(0.8),
+                                            blurRadius: 8,
+                                            spreadRadius: 2,
+                                          )
+                                        ]
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
+                      // Signal Label
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          color: _getSignalColor(_lastDetection!.signalState),
+                          child: Text(
+                            _getSignalStateText(_lastDetection!.signalState),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -260,31 +373,54 @@ class _CameraScreenState extends State<CameraScreen> {
               bottom: 30,
               left: 20,
               right: 20,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  FloatingActionButton(
-                    onPressed: () => Navigator.pop(context),
-                    backgroundColor: Colors.grey[800],
-                    child: const Icon(Icons.arrow_back, color: Colors.white),
+                  // Main action row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      FloatingActionButton(
+                        onPressed: () => Navigator.pop(context),
+                        backgroundColor: Colors.grey[800],
+                        child: const Icon(Icons.arrow_back, color: Colors.white),
+                      ),
+                      FloatingActionButton.extended(
+                        onPressed: _isDetecting ? _stopDetection : _startDetection,
+                        backgroundColor: _isDetecting ? Colors.red : Colors.green,
+                        icon: Icon(_isDetecting ? Icons.stop : Icons.play_arrow),
+                        label: Text(_isDetecting ? 'STOP' : 'START'),
+                      ),
+                      FloatingActionButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const HistoryScreen(),
+                            ),
+                          );
+                        },
+                        backgroundColor: Colors.grey[800],
+                        child: const Icon(Icons.history, color: Colors.white),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 16),
+                  // Training button
                   FloatingActionButton.extended(
-                    onPressed: _isDetecting ? _stopDetection : _startDetection,
-                    backgroundColor: _isDetecting ? Colors.red : Colors.green,
-                    icon: Icon(_isDetecting ? Icons.stop : Icons.play_arrow),
-                    label: Text(_isDetecting ? 'STOP' : 'START'),
-                  ),
-                  FloatingActionButton(
                     onPressed: () {
+                      // Stop detection before going to training
+                      if (_isDetecting) _stopDetection();
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const HistoryScreen(),
+                          builder: (context) => TrainingScreen(camera: widget.camera),
                         ),
                       );
                     },
-                    backgroundColor: Colors.grey[800],
-                    child: const Icon(Icons.history, color: Colors.white),
+                    backgroundColor: Colors.blue,
+                    icon: const Icon(Icons.school),
+                    label: const Text('TRAINING'),
                   ),
                 ],
               ),

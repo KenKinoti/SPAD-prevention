@@ -10,17 +10,20 @@ class AlertService {
   bool _isAlarmActive = false;
 
   Future<void> triggerAlarm() async {
-    if (_isAlarmActive) return;
+    print('ALERT SERVICE: triggerAlarm() called with controlled response');
 
+    if (_isAlarmActive) {
+      print('Alarm already active, ignoring duplicate trigger');
+      return;
+    }
+
+    print('Activating alarm with vibration only (audio disabled)');
     _isAlarmActive = true;
 
-    // Haptic feedback
+    // Only use haptic feedback - disable audio to prevent loops
     HapticFeedback.vibrate();
 
-    // Start audio alarm
-    await _playAlarmSound();
-
-    // Continue vibrating while alarm is active
+    // Start controlled vibration without audio
     _startVibrationLoop();
   }
 
@@ -34,6 +37,9 @@ class AlertService {
   }
 
   Future<void> _playAlarmSound() async {
+    print('AUDIO: _playAlarmSound() called but DISABLED for testing');
+    return; // Completely disable audio
+
     try {
       _audioPlayer = AudioPlayer();
 
@@ -51,6 +57,9 @@ class AlertService {
   }
 
   void _playSystemAlarm() {
+    print('SYSTEM ALARM: _playSystemAlarm() called but DISABLED for testing');
+    return; // Completely disable system alarm
+
     // Use system sounds as fallback
     SystemSound.play(SystemSoundType.alert);
 
