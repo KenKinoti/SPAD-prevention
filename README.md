@@ -22,6 +22,8 @@ A Flutter mobile application that uses a device's camera and machine learning to
 - ✅ Visual, audible, and haptic warnings
 - ✅ Detection history and logging
 - ✅ Start/Stop detection controls
+- ✅ **Training data collection system for ML model development**
+- ✅ **TensorFlow Lite integration with fallback detection**
 
 ### Alert System
 
@@ -39,6 +41,8 @@ A Flutter mobile application that uses a device's camera and machine learning to
 - Detection confidence indicator
 - History screen with detailed logs and statistics
 - Filtering options for alarm events
+- **Training screen for collecting ML training data**
+- **Real-time training statistics and progress tracking**
 
 ## Technical Stack
 
@@ -56,7 +60,7 @@ A Flutter mobile application that uses a device's camera and machine learning to
 
 1. **Flutter SDK** (3.35.4+) - [Installation Guide](https://docs.flutter.dev/get-started/install)
 2. **Android Studio** (already installed) ✅
-3. **Android SDK** version 33+
+3. **Android SDK** version 26+ (required for TensorFlow Lite)
 4. **Java Development Kit (JDK)** 11 or 17
 
 ### Environment Setup
@@ -154,7 +158,15 @@ A Flutter mobile application that uses a device's camera and machine learning to
    - ✅ Filter toggle for "Show only alarms"
    - ✅ Individual detection cards with timestamps
 
-7. **App Controls**:
+7. **Training Data Collection**:
+   - ✅ Blue "TRAINING" button accessible from camera screen
+   - ✅ Training screen with live camera preview
+   - ✅ Signal type selection (Red/Green/Yellow/None)
+   - ✅ Optional description input field
+   - ✅ Real-time training statistics display
+   - ✅ Successful image capture and storage
+
+8. **App Controls**:
    - ✅ Back button returns to home screen
    - ✅ Stop button ends detection
    - ✅ Clear history function works
@@ -279,16 +291,19 @@ flutter build apk --release
 
 ```
 lib/
-├── main.dart                    # App entry point and home screen
+├── main.dart                       # App entry point and home screen
 ├── models/
-│   └── detection_result.dart    # Data models for detections
+│   └── detection_result.dart       # Data models for detections
 ├── screens/
-│   ├── camera_screen.dart       # Main camera interface
-│   └── history_screen.dart      # Detection history view
+│   ├── camera_screen.dart          # Main camera interface with training access
+│   ├── history_screen.dart         # Detection history view
+│   └── training_screen.dart        # Training data collection interface
 └── services/
-    ├── signal_detector.dart     # ML simulation service
-    ├── alert_service.dart       # Alert management
-    └── detection_logger.dart    # History logging
+    ├── signal_detector.dart        # Color-based detection (current)
+    ├── ml_signal_detector.dart     # TensorFlow Lite ML detector
+    ├── training_data_collector.dart # Training image capture and storage
+    ├── alert_service.dart          # Alert management
+    └── detection_logger.dart       # History logging
 ```
 
 ## Configuration
@@ -303,42 +318,101 @@ Key parameters in the application:
 
 ## Machine Learning Integration
 
-### Current Implementation
-The app currently uses **simulation mode** for demonstration:
-- Generates random signal detections every 3-10 seconds
-- Simulates red/green/yellow signal classifications
-- Calculates distance based on simulated bounding box size
-- Provides realistic confidence scores
+### 🎯 **Training Data Collection System**
 
-### Real ML Integration Steps
-To integrate actual machine learning:
+The app now includes a comprehensive training data collection system:
 
-1. **Train a Model**: Create TensorFlow Lite model for railway signal detection
-2. **Model Requirements**:
-   - Input: Camera frame (RGB image)
-   - Output: Object detection with classification
-   - Classes: Red, Green, Yellow signals
-   - Format: TensorFlow Lite (.tflite)
+**Training Screen Features:**
+- Live camera preview for real-time data capture
+- Signal type selection: Red, Green, Yellow, None (backgrounds)
+- Optional description field for sample labeling
+- Real-time statistics showing collected samples per category
+- Organized storage in categorized folders
 
-3. **Replace Simulation**: Update `SignalDetector._simulateMLInference()` with:
-   ```dart
-   // Load TensorFlow Lite model
-   final interpreter = await Interpreter.fromAsset('signal_detection_model.tflite');
+**Training Data Organization:**
+```
+Documents/training_data/
+├── red_signals/       # Red signal samples
+├── green_signals/     # Green signal samples
+├── yellow_signals/    # Yellow signal samples
+├── no_signals/        # Background/negative samples
+└── dataset_info.csv   # Export manifest for training
+```
 
-   // Run inference on camera frame
-   interpreter.run(inputImage, output);
+**How to Collect Training Data:**
+1. Open the app and navigate to camera screen
+2. Tap the blue **"TRAINING"** button
+3. Select signal type (Red/Green/Yellow/None)
+4. Point camera at target signal or background
+5. Add optional description
+6. Tap **"CAPTURE"** to save training image
+7. Repeat for diverse conditions and angles
 
-   // Parse results and return DetectionResult
-   ```
+### 🤖 **ML Model Integration Architecture**
 
-4. **Bundle Model**: Add `.tflite` file to `assets/` directory
+**Current Implementation:**
+- **MLSignalDetector** service with TensorFlow Lite integration
+- Automatic fallback to color-based detection when no model is available
+- Camera frame preprocessing and model inference pipeline
+- Confidence scoring and signal classification
+
+**Training Data Requirements:**
+- **Minimum**: 50+ images per category for basic training
+- **Recommended**: 200+ images per category for robust performance
+- **Diversity**: Different lighting, angles, distances, weather conditions
+
+### 🔄 **ML Integration Steps**
+
+**Phase 1: Data Collection (Current)**
+```bash
+# Use the training screen to collect samples
+1. Point camera at red signals → Capture 100+ samples
+2. Point camera at green signals → Capture 100+ samples
+3. Point camera at yellow signals → Capture 100+ samples
+4. Point camera at backgrounds → Capture 100+ samples
+```
+
+**Phase 2: Model Training (External)**
+```python
+# Example training pipeline (external to app)
+1. Export training data from device
+2. Create TensorFlow model using collected images
+3. Train CNN for signal classification
+4. Convert to TensorFlow Lite format (.tflite)
+5. Optimize for mobile deployment
+```
+
+**Phase 3: Model Deployment**
+```dart
+1. Place trained model in assets/models/signal_classifier.tflite
+2. App automatically switches from color-based to ML detection
+3. MLSignalDetector handles inference and classification
+4. Fallback remains available if model fails
+```
+
+### 🎯 **Model Requirements**
+
+**Input Specifications:**
+- **Format**: RGB image, 224x224 pixels
+- **Normalization**: [-1, 1] range (MobileNet preprocessing)
+- **Source**: Live camera frames
+
+**Output Specifications:**
+- **Classes**: [no_signal, red_signal, green_signal, yellow_signal]
+- **Format**: 4-element probability vector
+- **Threshold**: 0.7+ confidence for alarm triggers
+
+**Performance Targets:**
+- **Inference Speed**: <100ms per frame
+- **Accuracy**: 95%+ for safety-critical red signal detection
+- **Model Size**: <50MB for mobile deployment
 
 ## Hardware Requirements
 
 ### Minimum Requirements
-- **Android Device**: API level 21+ (Android 5.0)
+- **Android Device**: API level 26+ (Android 8.0) - required for TensorFlow Lite
 - **RAM**: 4GB for smooth operation
-- **Storage**: 100MB app size
+- **Storage**: 200MB (app + training data)
 - **Camera**: Rear camera with autofocus
 - **Processor**: ARM64 or x86_64 architecture
 
