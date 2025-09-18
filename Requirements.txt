@@ -1,0 +1,128 @@
+Project: SPAD Prevention Mobile App (POC) - Requirements Specification
+Filename: requirements.txt
+
+Project Title: RailSafe SPAD POC
+Version: 1.0
+Date: 2023-10-27
+Status: Conceptual
+
+1. Project Overview
+A React Native mobile application that uses a device's camera and machine learning to detect railway signals. The app will classify the signal aspect (e.g., Red, Green) and, if red, calculate the distance to it. If the signal is red and within a critical distance (e.g., 100m), the app will trigger a strong visual and audible alarm to alert the driver.
+
+2. Functional Requirements (FR)
+FR1: Real-time Camera Feed
+
+The app must access and display the device's rear camera feed in real-time.
+
+FR2: Signal Detection & Classification
+
+A machine learning model must analyze each video frame to detect the presence of a railway signal.
+
+The model must classify the detected signal's state (e.g., Red, Green, Yellow, Unrecognized).
+
+FR3: Distance Estimation
+
+Upon detecting a signal, the app must estimate the distance between the camera and the signal.
+
+Method: Use the known physical size of a standard signal (or its lens) and calculate distance based on its pixel size in the image (pinhole camera model).
+
+FR4: Alert Logic
+
+IF signal state is classified as Red AND estimated distance is <= 100 meters THEN trigger a high-priority alarm.
+
+IF signal state is Green OR distance is > 100 meters THEN maintain normal operation (log data, no alarm).
+
+FR5: Alert System
+
+Visual Alarm: The entire screen must flash a bright red color with a clear warning text (e.g., "STOP! RED SIGNAL AHEAD").
+
+Audible Alarm: A loud, piercing, and distinct siren sound must play repeatedly until the condition is no longer true.
+
+FR6: User Interface (UI)
+
+A viewfinder showing the camera feed with an overlay of bounding boxes and classification labels.
+
+Display current estimated distance and signal status prominently.
+
+A log/history screen of detected events.
+
+Start/Stop button for the detection system.
+
+3. Non-Functional Requirements (NFR)
+NFR1: Performance (Latency)
+
+The entire pipeline (frame capture → inference → alert) must have minimal latency (< 500ms). This is critical for a real-time warning system.
+
+NFR2: Accuracy
+
+The ML model must have a very high precision for "Red" signal classification (>99.5%) to avoid false alarms which erode user trust. High recall is also critical.
+
+NFR3: Reliability
+
+The app must function consistently under various conditions: different times of day (dawn, dusk, night with a bright light), and weather (rain, fog). (Extremely challenging for a simple POC).
+
+NFR4: Platform
+
+The app must be built using React Native for cross-platform compatibility (iOS & Android).
+
+4. Technical Specifications & Dependencies
+Core Technologies & Libraries
+text
+# Project & Navigation
+react-native@0.72.4
+@react-navigation/native
+@react-navigation/stack
+
+# Camera Access
+react-native-vision-camera@^3.0.0  # Preferred for high-performance real-time feed
+react-native-vision-camera-frame-processor-plugin-vision # For ML frame processing
+
+# OR (if vision-camera is too complex for initial POC)
+react-native-camera-kit@^1.0.0  # More user-friendly but potentially higher latency
+
+# Machine Learning (Model Inference)
+react-native-mediapipe@^2.0.0  # For using custom .tflite models (recommended)
+# OR
+react-native-tensorflow-lite@^2.0.0  # Alternative TFLite bridge
+
+# UI & Icons
+react-native-reanimated@^3.0.0
+react-native-gesture-handler@^2.0.0
+react-native-svg@^13.0.0
+react-native-safe-area-context@^4.0.0
+
+# Audio Alerts
+react-native-sound@^0.11.0
+
+# Utilities
+lodash
+moment
+Machine Learning Model
+Format: TensorFlow Lite (.tflite) or MediaPipe (.tflite)
+
+Task: Object Detection (to find the signal) + Classification (to identify its color state).
+
+Requirement: The model must be bundled with the app. It can be trained on a dataset of railway signal images from various angles, lighting conditions, and countries.
+
+Training: This model would need to be created and trained separately using a framework like TensorFlow or MediaPipe AutoML Vision and then converted to TFLite for mobile deployment.
+
+5. Hardware Requirements
+Smartphone/Tablet: A relatively modern iOS or Android device.
+
+Processing Power: A device with a powerful CPU/GPU (e.g., devices with NPUs) is strongly recommended for real-time inference.
+
+Camera: A high-quality rear camera with good autofocus and the ability to handle varying light conditions.
+
+Mounting Hardware: A sturdy, hands-free mount to position the device's camera in the driver's line of sight. This is crucial for a valid POC.
+
+6. Limitations & Risks (CRITICAL)
+L1: Safety Critical: This is NOT a certified safety system. It is a driver aid POC and must be treated as such.
+
+L2: Single Point of Failure: Relies on a single phone's camera and battery. Real systems have multiple, redundant sensors.
+
+L3: Environmental Factors: Performance will severely degrade in fog, heavy rain, direct sunlight causing lens flare, or if the camera lens is dirty.
+
+L4: False Alarms/Misses: The ML model will never be 100% accurate. Both false positives (annoying) and false negatives (catastrophic) are possible.
+
+L5: Calibration: Distance estimation requires calibration based on assumed signal size, which can vary. It is an estimate, not a precise measurement.
+
